@@ -30,9 +30,7 @@ contract Betting {
     }
 
     function placeBet(uint option) public payable {
-        require(msg.value > 0, "Bet amount must be greater than zero");
-        require(msg.value <= maxBetAmount, "Bet amount exceeds maximum allowed");
-        require(msg.value <= bank, "Bet amount exceeds bank balance");
+        require(msg.value > 0 && msg.value <= maxBetAmount && msg.value <= bank, "Bet amount invalid or exceeds limits");
 
         Bet memory newBet = Bet({
             bettor: msg.sender,
@@ -50,38 +48,36 @@ contract Betting {
 
     function calculateOdd(uint option) public view returns (uint) {
         require(optionAmounts[option] > 0, "No bets placed on this option");
-        return (totalAmount + bank) / optionAmounts[option];
+        return (totalAmount + bank) * 1e18 / optionAmounts[option];
     }
 
     function distributeWinnings(uint winningOption) public onlyOwner {
         uint winningAmount = optionAmounts[winningOption];
         require(winningAmount > 0, "No bets placed on this option");
 
+        uint odd = calculateOdd(winningOption);
+
         for (uint i = 0; i < bets.length; i++) {
             if (bets[i].option == winningOption) {
-                uint payout = bets[i].amount * calculateOdd(winningOption);
+                uint payout = bets[i].amount * odd / 1e18;
                 payable(bets[i].bettor).transfer(payout);
                 emit Payout(bets[i].bettor, payout);
             }
         }
 
-        // Reset contract state after payout
         totalAmount = 0;
         for (uint i = 0; i < bets.length; i++) {
-            delete optionAmounts[bets[i].option];
+            optionAmounts[bets[i].option] = 0;
         }
-        delete bets;
+        delete bets; // Correctly resetting the array
         bank = address(this).balance;
     }
+
 
     function getBetDetails(uint index) public view returns (address, uint, uint) {
         require(index < bets.length, "Invalid bet index");
         Bet memory bet = bets[index];
         return (bet.bettor, bet.amount, bet.option);
-    }
-
-    function getTotalAmount() public view returns (uint) {
-        return totalAmount;
     }
 
     function addFunds() public payable onlyOwner {

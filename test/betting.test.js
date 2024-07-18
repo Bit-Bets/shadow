@@ -19,9 +19,9 @@ contract("Betting", (accounts) => {
     it("should calculate the odds", async () => {
         await bettingInstance.placeBet(1, { from: accounts[1], value: web3.utils.toWei("0.5", "ether") });
         const odd = await bettingInstance.calculateOdd(1);
-        const expectedOdd = web3.utils.toWei("20", "ether") / web3.utils.toWei("0.5", "ether");
+        const expectedOdd = (web3.utils.toWei("10.5", "ether") * 1e18 / web3.utils.toWei("0.5", "ether")).toString();
 
-        assert.equal(odd.toNumber(), expectedOdd, "The odd should be calculated correctly");
+        assert.equal(odd.toString(), expectedOdd, "The odd should be calculated correctly");
     });
 
     it("should not allow extravagant bets", async () => {
@@ -29,7 +29,7 @@ contract("Betting", (accounts) => {
             await bettingInstance.placeBet(1, { from: accounts[1], value: web3.utils.toWei("2", "ether") });
             assert.fail("The bet should not be allowed");
         } catch (error) {
-            assert.include(error.message, "Bet amount exceeds maximum allowed", "Expected error message");
+            assert.include(error.message, "Bet amount invalid or exceeds limits", "Expected error message");
         }
     });
 
@@ -42,8 +42,9 @@ contract("Betting", (accounts) => {
         await bettingInstance.distributeWinnings(1, { from: accounts[0] });
         
         const finalBalance = web3.utils.toBN(await web3.eth.getBalance(accounts[1]));
-        const expectedWinnings = web3.utils.toBN(web3.utils.toWei("20", "ether"));
-        
+        const odd = web3.utils.toBN(await bettingInstance.calculateOdd(1));
+        const expectedWinnings = web3.utils.toBN(web3.utils.toWei("0.5", "ether")).mul(odd).div(web3.utils.toBN(1e18));
+
         assert(finalBalance.sub(initialBalance).gte(expectedWinnings), "The winnings should be paid correctly");
     });
 

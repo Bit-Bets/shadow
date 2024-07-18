@@ -12,10 +12,7 @@ This is a decentralized betting platform deployed on the Polygon network.
 ## Installation
 
 1. Clone the repository:
-    ```bash
-    git clone https://github.com/yourusername/betting-project.git
-    cd betting-project
-    ```
+
 
 2. Install dependencies:
     ```bash

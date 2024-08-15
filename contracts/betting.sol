@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.24;
 
 contract Betting {
     struct Bet {
@@ -48,8 +48,9 @@ contract Betting {
 
     function calculateOdd(uint option) public view returns (uint) {
         require(optionAmounts[option] > 0, "No bets placed on this option");
-        return (totalAmount + bank) * 1e18 / optionAmounts[option];
+        return (totalAmount + bank) / optionAmounts[option]; // mudei essa budega
     }
+
 
     function distributeWinnings(uint winningOption) public onlyOwner {
         uint winningAmount = optionAmounts[winningOption];

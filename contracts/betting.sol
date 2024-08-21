@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.19;
 
 contract Betting {
     struct Bet {
@@ -30,7 +30,10 @@ contract Betting {
     }
 
     function placeBet(uint option) public payable {
-        require(msg.value > 0 && msg.value <= maxBetAmount && msg.value <= bank, "Bet amount invalid or exceeds limits");
+        require(
+            msg.value > 0 && msg.value <= maxBetAmount && msg.value <= bank,
+            "Bet amount invalid or exceeds limits"
+        );
 
         Bet memory newBet = Bet({
             bettor: msg.sender,
@@ -48,34 +51,48 @@ contract Betting {
 
     function calculateOdd(uint option) public view returns (uint) {
         require(optionAmounts[option] > 0, "No bets placed on this option");
-        return (totalAmount + bank) / optionAmounts[option]; // mudei essa budega
+        return (totalAmount + bank) / optionAmounts[option];
     }
-
 
     function distributeWinnings(uint winningOption) public onlyOwner {
         uint winningAmount = optionAmounts[winningOption];
         require(winningAmount > 0, "No bets placed on this option");
 
-        uint odd = calculateOdd(winningOption);
+        uint totalPayout = 0;
+        Bet[] memory winners = new Bet[](bets.length);
+        uint winnerCount = 0;
 
+        // Coleta todos os vencedores
         for (uint i = 0; i < bets.length; i++) {
             if (bets[i].option == winningOption) {
-                uint payout = bets[i].amount * odd / 1e18;
-                payable(bets[i].bettor).transfer(payout);
-                emit Payout(bets[i].bettor, payout);
+                uint payout = (bets[i].amount * calculateOdd(winningOption)) / 1e18;
+                winners[winnerCount] = bets[i];
+                winnerCount++;
+                totalPayout += payout;
             }
         }
 
+        require(totalPayout <= bank, "Bank has insufficient funds");
+
+        // Distribui os pagamentos
+        for (uint i = 0; i < winnerCount; i++) {
+            uint payout = (winners[i].amount * calculateOdd(winningOption)) / 1e18;
+            payable(winners[i].bettor).transfer(payout);
+            emit Payout(winners[i].bettor, payout);
+        }
+
+        // Reseta o estado
         totalAmount = 0;
         for (uint i = 0; i < bets.length; i++) {
             optionAmounts[bets[i].option] = 0;
         }
-        delete bets; // Correctly resetting the array
+        delete bets;
         bank = address(this).balance;
     }
 
-
-    function getBetDetails(uint index) public view returns (address, uint, uint) {
+    function getBetDetails(
+        uint index
+    ) public view returns (address, uint, uint) {
         require(index < bets.length, "Invalid bet index");
         Bet memory bet = bets[index];
         return (bet.bettor, bet.amount, bet.option);

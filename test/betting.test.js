@@ -1,10 +1,13 @@
 const Betting = artifacts.require("Betting");
 
 contract("Betting", (accounts) => {
+    let betting;
+    const [owner, bettor1, bettor2] = accounts;
     let bettingInstance;
 
     beforeEach(async () => {
         bettingInstance = await Betting.new(web3.utils.toWei("10", "ether"), web3.utils.toWei("1", "ether"));
+        betting = await Betting.new(web3.utils.toWei("10", "ether"), web3.utils.toWei("2", "ether"), { from: owner });
     });
 
     it("should place a bet", async () => {
@@ -72,20 +75,19 @@ contract("Betting", (accounts) => {
         }
     });
 
-    it("should distribute winnings", async () => {
-        await bettingInstance.placeBet(1, { from: accounts[1], value: web3.utils.toWei("0.5", "ether") });
-        await bettingInstance.placeBet(2, { from: accounts[2], value: web3.utils.toWei("0.5", "ether") });
-        
-        const initialBalance = web3.utils.toBN(await web3.eth.getBalance(accounts[1]));
-        
-        await bettingInstance.distributeWinnings(1, { from: accounts[0] });
-        
-        const finalBalance = web3.utils.toBN(await web3.eth.getBalance(accounts[1]));
-        const odd = web3.utils.toBN(await bettingInstance.calculateOdd(1));
-        const expectedWinnings = web3.utils.toBN(web3.utils.toWei("0.5", "ether")).mul(odd).div(web3.utils.toBN(1e18));
-
-        assert(finalBalance.sub(initialBalance).gte(expectedWinnings), "The winnings should be paid correctly");
-    });
+    it("should distribute winnings correctly", async () => {
+        // Bettor1 bets on option 1
+        await betting.placeBet(1, { from: bettor1, value: web3.utils.toWei("1", "ether") });
+        // Bettor2 bets on option 2
+        await betting.placeBet(2, { from: bettor2, value: web3.utils.toWei("1", "ether") });
+    
+        // Owner distributes winnings for option 1
+        await betting.distributeWinnings(1, { from: owner });
+    
+        // Verify bettor1 received payout
+        const bettor1Balance = await web3.eth.getBalance(bettor1);
+        assert(bettor1Balance > web3.utils.toWei("101", "ether"), "Bettor1 did not receive correct payout");
+      });
 
     it("should only allow the owner to distribute winnings", async () => {
         try {

@@ -18,12 +18,11 @@ contract Betting {
     event BetPlaced(address indexed bettor, uint amount, uint option);
     event Payout(address indexed bettor, uint amount);
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner can call this function");
-        _;
-    }
-
+    // Definição do constructor
     constructor(uint initialBank, uint _maxBetAmount) {
+        require(initialBank > 0, "Initial bank must be greater than zero");
+        require(_maxBetAmount > 0, "Max bet amount must be greater than zero");
+
         owner = msg.sender;
         bank = initialBank;
         maxBetAmount = _maxBetAmount;
@@ -106,5 +105,10 @@ contract Betting {
         require(amount <= bank, "Amount exceeds bank balance");
         payable(owner).transfer(amount);
         bank -= amount;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can call this function");
+        _;
     }
 }

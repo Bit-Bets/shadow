@@ -6,7 +6,6 @@ contract Betting {
         address bettor;
         uint amount;
         uint option; // 1 para o time A, 2 para o time B
-        uint odd; // Salvar a odd no momento da aposta
     }
 
     address public owner;
@@ -59,8 +58,6 @@ contract Betting {
         require(option == 1 || option == 2, "Invalid option");
         require(betAmount > 0 && betAmount <= maxBetAmount && betAmount <= bank, "Bet amount invalid or exceeds limits");
 
-        // Calcular a odd no momento da aposta
-        uint currentOdd = calculateOdd(option);
         optionAmounts[option] += betAmount;
         totalAmount += betAmount;
         // bank -= betAmount;
@@ -68,8 +65,7 @@ contract Betting {
         Bet memory newBet = Bet({
             bettor: msg.sender,
             amount: betAmount,
-            option: option,
-            odd: currentOdd // Salvar a odd calculada
+            option: option
         });
 
         bets.push(newBet);
@@ -77,42 +73,7 @@ contract Betting {
         emit BetPlaced(msg.sender, betAmount, option);
     }
 
-    function distributeWinnings(uint winningOption) public onlyOwner onlyActive {
-        uint winningAmount = optionAmounts[winningOption];
-        require(winningAmount > 0, "No bets placed on this option");
-
-        uint totalPayout = 0;
-        Bet[] memory winners = new Bet[](bets.length);
-        uint winnerCount = 0;
-
-        for (uint i = 0; i < bets.length; i++) {
-            if (bets[i].option == winningOption) {
-                uint payout = (bets[i].amount * bets[i].odd) / 1e18; // Usar a odd salva
-                winners[winnerCount] = bets[i];
-                winnerCount++;
-                totalPayout += payout;
-            }
-        }
-
-        require(totalPayout <= bank, "Bank has insufficient funds");
-
-        for (uint i = 0; i < winnerCount; i++) {
-            uint payout = (winners[i].amount * winners[i].odd) / 1e18; // Usar a odd salva
-            payable(winners[i].bettor).transfer(payout);
-            emit Payout(winners[i].bettor, payout);
-        }
-
-        totalAmount = 0;
-        for (uint i = 0; i < bets.length; i++) {
-            optionAmounts[bets[i].option] = 0;
-        }
-        delete bets;
-        bank = address(this).balance;
-
-        isActive = false; // Torna o contrato inutilizável após a distribuição dos ganhos
-    }
-
-    function calculateOdd(uint option) internal view returns (uint) {
+    function calculateOdds(uint option) internal view returns (uint) {
         require(optionAmounts[option] > 0, "No bets placed on this option");
 
         uint totalBets = optionAmounts[1] + optionAmounts[2];
@@ -183,10 +144,5 @@ contract Betting {
 
     function getContractBalance() public view returns (uint) {
         return address(this).balance;
-    }
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner can call this function");
-        _;
     }
 }

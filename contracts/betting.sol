@@ -58,12 +58,7 @@ contract Betting {
 
     function placeBet(uint option, uint betAmount) public payable onlyActive {
 
-        // Recalcula as odds antes de registrar a aposta
-        if (option == 1) {
-            oddsA = calculateOdds(1);
-        } else if (option == 2) {
-            oddsB = calculateOdds(2);
-        }
+        
 
         uint currentOdds = (option == 1) ? oddsA : oddsB;
 
@@ -80,17 +75,33 @@ contract Betting {
         bets.push(newBet);
 
         emit BetPlaced(msg.sender, betAmount, option, currentOdds);
+
+        // Recalcula as odds antes de registrar a aposta
+        if (option == 1) {
+            oddsA = calculateOdds(1);
+        } else if (option == 2) {
+            oddsB = calculateOdds(2);
+        }
     }
 
     function calculateOdds(uint option) internal view returns (uint) {
-        uint totalBets = optionAmounts[1] + optionAmounts[2];
-        if (optionAmounts[option] == 0 || totalBets == 0) {
-            return (option == 1) ? 12 : 16; // Retorna odds iniciais se não houver apostas suficientes
-        }
-
-        uint odds = (totalBets * 10) / optionAmounts[option]; // Multiplicado por 10 para simular casas decimais
-        return odds;
+    uint totalBets = optionAmounts[1] + optionAmounts[2];
+    if (totalBets == 0 || optionAmounts[option] == 0) {
+        return (option == 1) ? 12 : 16; // Retorna odds iniciais se não houver apostas suficientes
     }
+
+    // Calcula a nova odd baseada na porcentagem do total apostado no time oposto
+    uint oppositeOption = (option == 1) ? 2 : 1;
+    uint odds = (totalBets * 10) / optionAmounts[option];
+    
+    // Garante que a odd nunca caia abaixo de 1.1 (ou 11 na escala multiplicada por 10)
+    if (odds < 11) {
+        odds = 11;
+    }
+    
+    return odds;
+}
+
 
     function transfer(address to, uint amount) internal onlyOwner onlyActive {
         require(amount <= address(this).balance, "Amount exceeds contract balance");

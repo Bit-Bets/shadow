@@ -16,38 +16,41 @@ contract Betting {
     uint public maxBetAmount;
     string public teamAName;
     string public teamBName;
-    uint public teamAProbability;
-    uint public teamBProbability;
     bool public isActive; // Novo estado para indicar se o contrato está ativo
+    uint public winningOption; // Nova variável para armazenar a opção vencedora
 
     event BetPlaced(address indexed bettor, uint amount, uint option);
     event Payout(address indexed bettor, uint amount);
+    event Transfer(address indexed to, uint amount); // Novo evento para transferências
+    event WinningOptionSet(uint option); // Novo evento para quando a opção vencedora é definida
 
     constructor(
         uint initialBank,
         uint _maxBetAmount,
         string memory _teamAName,
-        string memory _teamBName,
-        uint _teamAProbability,
-        uint _teamBProbability
+        string memory _teamBName
+
     ) {
         require(initialBank > 0, "Initial bank must be greater than zero");
         require(_maxBetAmount > 0, "Max bet amount must be greater than zero");
         require(bytes(_teamAName).length > 0 && bytes(_teamBName).length > 0, "Team names must be provided");
-        require(_teamAProbability + _teamBProbability == 100, "Probabilities must sum to 100");
 
         owner = msg.sender;
         bank = initialBank;
+        totalAmount = initialBank;
         maxBetAmount = _maxBetAmount;
         teamAName = _teamAName;
         teamBName = _teamBName;
-        teamAProbability = _teamAProbability;
-        teamBProbability = _teamBProbability;
         isActive = true; // Define o contrato como ativo inicialmente
     }
 
     modifier onlyActive() {
         require(isActive, "Contract is no longer active");
+        _;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can call this function");
         _;
     }
 
@@ -57,7 +60,7 @@ contract Betting {
 
         optionAmounts[option] += betAmount;
         totalAmount += betAmount;
-        bank -= betAmount;
+        // bank -= betAmount;
 
         Bet memory newBet = Bet({
             bettor: msg.sender,
@@ -70,61 +73,56 @@ contract Betting {
         emit BetPlaced(msg.sender, betAmount, option);
     }
 
-    function distributeWinnings(uint winningOption) public onlyOwner onlyActive {
-        uint winningAmount = optionAmounts[winningOption];
-        require(winningAmount > 0, "No bets placed on this option");
-
-        uint totalPayout = 0;
-        Bet[] memory winners = new Bet[](bets.length);
-        uint winnerCount = 0;
-
-        for (uint i = 0; i < bets.length; i++) {
-            if (bets[i].option == winningOption) {
-                uint payout = (bets[i].amount * calculateOdd(winningOption)) / 1e18;
-                winners[winnerCount] = bets[i];
-                winnerCount++;
-                totalPayout += payout;
-            }
-        }
-
-        require(totalPayout <= bank, "Bank has insufficient funds");
-
-        for (uint i = 0; i < winnerCount; i++) {
-            uint payout = (winners[i].amount * calculateOdd(winningOption)) / 1e18;
-            payable(winners[i].bettor).transfer(payout);
-            emit Payout(winners[i].bettor, payout);
-        }
-
-        totalAmount = 0;
-        for (uint i = 0; i < bets.length; i++) {
-            optionAmounts[bets[i].option] = 0;
-        }
-        delete bets;
-        bank = address(this).balance;
-
-        isActive = false; // Torna o contrato inutilizável após a distribuição dos ganhos
-    }
-
-    function calculateOdd(uint option) internal view returns (uint) {
+    function calculateOdds(uint option) internal view returns (uint) {
         require(optionAmounts[option] > 0, "No bets placed on this option");
-    
+
         uint totalBets = optionAmounts[1] + optionAmounts[2];
         require(totalBets > 0, "No bets placed on any option");
 
+        // Calcular o máximo payout permitido
+        uint maxPayout = bank / totalBets;
+
         uint odds;
         if (option == 1) {
-            odds = (totalBets * 1e18) / (optionAmounts[1] * teamAProbability);
+            odds = (maxPayout * 100) / optionAmounts[1];
         } else if (option == 2) {
-            odds = (totalBets * 1e18) / (optionAmounts[2] * teamBProbability);
+            odds = (maxPayout * 100) / optionAmounts[2];
         }
-    
+
         return odds;
     }
 
-    function withdrawFunds(uint amount) public onlyOwner onlyActive {
+    function transfer(address to, uint amount) internal onlyOwner onlyActive {
         require(amount <= bank, "Amount exceeds bank balance");
-        payable(owner).transfer(amount);
+        payable(to).transfer(amount);
         bank -= amount;
+        emit Transfer(to, amount);
+    }
+
+    function setWinningOption(uint option) public onlyOwner onlyActive {
+        require(option == 1 || option == 2, "Invalid option");
+        winningOption = option;
+        emit WinningOptionSet(option);
+    }
+
+    function distributeWinnings() public onlyOwner onlyActive {
+        require(totalAmount > 0, "No bets to distribute");
+        require(winningOption == 1 || winningOption == 2, "Winning option not set");
+
+        uint totalBetsOnWinningOption = optionAmounts[winningOption];
+        uint totalWinnings = address(this).balance;
+
+        for (uint i = 0; i < bets.length; i++) {
+            if (bets[i].option == winningOption) {
+                uint payout = (bets[i].amount * totalWinnings) / totalBetsOnWinningOption;
+                require(payout <= address(this).balance, "Insufficient funds for payout");
+                payable(bets[i].bettor).transfer(payout);
+                emit Payout(bets[i].bettor, payout);
+            }
+        }
+
+        // Desativa o contrato após a distribuição dos ganhos
+        isActive = false;
     }
 
     function getMyBalance() public view returns (uint) {
@@ -141,15 +139,10 @@ contract Betting {
 
     function viewOdds(uint option) public view returns (uint) {
         require(option == 1 || option == 2, "Invalid option");
-        return calculateOdd(option);
+        return calculateOdds(option);
     }
 
     function getContractBalance() public view returns (uint) {
         return address(this).balance;
-    }
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner can call this function");
-        _;
     }
 }

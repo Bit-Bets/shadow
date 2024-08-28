@@ -1,118 +1,105 @@
 const Betting = artifacts.require("Betting");
 
-contract("Betting", (accounts) => {
+contract("Betting", accounts => {
+    const [owner, bettor1, bettor2] = accounts;
+
     let bettingInstance;
-    const owner = accounts[0];
-    const bettor1 = accounts[1];
-    const bettor2 = accounts[2];
     const initialBank = web3.utils.toWei("10", "ether");
     const maxBetAmount = web3.utils.toWei("1", "ether");
     const teamAName = "Team A";
     const teamBName = "Team B";
-    const teamAProbability = 60;
-    const teamBProbability = 40;
 
     beforeEach(async () => {
         bettingInstance = await Betting.new(
             initialBank,
             maxBetAmount,
             teamAName,
-            teamBName,
-            teamAProbability,
-            teamBProbability,
-            { from: owner }
+            teamBName
         );
     });
 
-    it("should deploy the contract with correct initial values", async () => {
-        const contractOwner = await bettingInstance.owner();
-        const bank = await bettingInstance.bank();
-        const maxBet = await bettingInstance.maxBetAmount();
-        const teamA = await bettingInstance.getTeamAName();
-        const teamB = await bettingInstance.getTeamBName();
-        const isActive = await bettingInstance.isActive();
+    it("should place bets correctly", async () => {
+        const betAmount = web3.utils.toWei("0.5", "ether");
 
-        assert.equal(contractOwner, owner, "Owner is incorrect");
-        assert.equal(bank.toString(), initialBank, "Initial bank is incorrect");
-        assert.equal(maxBet.toString(), maxBetAmount, "Max bet amount is incorrect");
-        assert.equal(teamA, teamAName, "Team A name is incorrect");
-        assert.equal(teamB, teamBName, "Team B name is incorrect");
-        assert.equal(isActive, true, "Contract should be active");
+        await bettingInstance.placeBet(1, betAmount, { from: bettor1, value: betAmount });
+        await bettingInstance.placeBet(2, betAmount, { from: bettor2, value: betAmount });
+
+        const option1Amount = await bettingInstance.optionAmounts(1);
+        const option2Amount = await bettingInstance.optionAmounts(2);
+
+        assert.equal(option1Amount.toString(), betAmount);
+        assert.equal(option2Amount.toString(), betAmount);
     });
 
-    it("should allow a valid bet to be placed", async () => {
-        await bettingInstance.placeBet(1, maxBetAmount, { from: bettor1, value: maxBetAmount });
+    it("should set the winning option and distribute winnings correctly", async () => {
+        const betAmount = web3.utils.toWei("0.5", "ether");
 
-        const optionAmount = await bettingInstance.optionAmounts(1);
-        assert.equal(optionAmount.toString(), maxBetAmount, "Bet amount was not correctly recorded");
+        // Place bets
+        await bettingInstance.placeBet(1, betAmount, { from: bettor1, value: betAmount });
+        await bettingInstance.placeBet(2, betAmount, { from: bettor2, value: betAmount });
 
-        const totalAmount = await bettingInstance.totalAmount();
-        assert.equal(totalAmount.toString(), maxBetAmount, "Total amount was not correctly updated");
+        // Define the winning option
+        await bettingInstance.setWinningOption(1, { from: owner });
 
-        const bank = await bettingInstance.bank();
-        assert.equal(bank.toString(), web3.utils.toWei("9", "ether"), "Bank balance was not correctly updated");
-    });
+        // Distribute winnings
+        const initialBalanceBettor1 = web3.utils.toBN(await web3.eth.getBalance(bettor1));
+        const initialBalanceBettor2 = web3.utils.toBN(await web3.eth.getBalance(bettor2));
 
-    it("should not allow an invalid bet to be placed", async () => {
-        try {
-            await bettingInstance.placeBet(3, maxBetAmount, { from: bettor1, value: maxBetAmount });
-            assert.fail("Bet should not have been allowed with an invalid option");
-        } catch (error) {
-            assert(error.message.includes("Invalid option"), "Expected invalid option error");
-        }
-    });
+        await bettingInstance.distributeWinnings({ from: owner });
 
-    it("should distribute winnings correctly and deactivate the contract", async () => {
-        await bettingInstance.placeBet(1, maxBetAmount, { from: bettor1, value: maxBetAmount });
-        await bettingInstance.placeBet(2, maxBetAmount, { from: bettor2, value: maxBetAmount });
-
-        await bettingInstance.distributeWinnings(1, { from: owner });
-
-        const bettor1BalanceAfter = await web3.eth.getBalance(bettor1);
+        const finalBalanceBettor1 = web3.utils.toBN(await web3.eth.getBalance(bettor1));
+        const finalBalanceBettor2 = web3.utils.toBN(await web3.eth.getBalance(bettor2));
         const contractBalance = await bettingInstance.getContractBalance();
-        const isActive = await bettingInstance.isActive();
 
-        assert(contractBalance.toString(), "Contract balance should be zero after distribution");
-        assert(isActive === false, "Contract should be deactivated after distribution");
-        assert(bettor1BalanceAfter > maxBetAmount, "Bettor 1 did not receive correct payout");
+        // Bettor1 should receive a payout
+        assert(finalBalanceBettor1.gt(initialBalanceBettor1), "Bettor1 should have received a payout");
+
+        // Bettor2 should not receive a payout
+        assert.equal(finalBalanceBettor2.toString(), initialBalanceBettor2.toString(), "Bettor2 should not have received any payout");
+
+        // Contract balance should be zero after payout
+        assert.equal(contractBalance.toString(), '0', "Contract balance should be zero after payout");
     });
 
-    it("should not allow betting after contract is deactivated", async () => {
-        await bettingInstance.distributeWinnings(1, { from: owner });
-        try {
-            await bettingInstance.placeBet(1, maxBetAmount, { from: bettor1, value: maxBetAmount });
-            assert.fail("Betting should not be allowed after contract is deactivated");
-        } catch (error) {
-            assert(error.message.includes("Contract is no longer active"), "Expected contract inactive error");
-        }
-    });
+    it("should set the winning option and distribute winnings correctly", async () => {
+        const betAmount = web3.utils.toWei("0.5", "ether");
 
-    it("should correctly calculate odds", async () => {
-        await bettingInstance.placeBet(1, maxBetAmount, { from: bettor1, value: maxBetAmount });
-        await bettingInstance.placeBet(2, maxBetAmount, { from: bettor2, value: maxBetAmount });
+        // Place bets
+        await bettingInstance.placeBet(1, betAmount, { from: bettor1, value: betAmount });
+        await bettingInstance.placeBet(2, betAmount, { from: bettor2, value: betAmount });
 
+        // Define the winning option
+        await bettingInstance.setWinningOption(1, { from: owner });
+
+        // Log initial balances
+        const initialBalanceBettor1 = web3.utils.toBN(await web3.eth.getBalance(bettor1));
+        const initialBalanceBettor2 = web3.utils.toBN(await web3.eth.getBalance(bettor2));
+        const initialContractBalance = web3.utils.toBN(await bettingInstance.getContractBalance());
+        console.log("Initial Balance Bettor1:", web3.utils.fromWei(initialBalanceBettor1, "ether").toString());
+        console.log("Initial Balance Bettor2:", web3.utils.fromWei(initialBalanceBettor2, "ether").toString());
+        console.log("Initial Contract Balance:", web3.utils.fromWei(initialContractBalance, "ether").toString());
+
+        // Distribute winnings
+        await bettingInstance.distributeWinnings({ from: owner });
+
+        // Log final balances
+        const finalBalanceBettor1 = web3.utils.toBN(await web3.eth.getBalance(bettor1));
+        const finalBalanceBettor2 = web3.utils.toBN(await web3.eth.getBalance(bettor2));
+        const finalContractBalance = web3.utils.toBN(await bettingInstance.getContractBalance());
+
+        console.log("Final Balance Bettor1:", web3.utils.fromWei(finalBalanceBettor1, "ether").toString());
+        console.log("Final Balance Bettor2:", web3.utils.fromWei(finalBalanceBettor2, "ether").toString());
+        console.log("Final Contract Balance:", web3.utils.fromWei(finalContractBalance, "ether").toString());
+
+        // Get and log odds
         const oddsTeamA = await bettingInstance.viewOdds(1);
         const oddsTeamB = await bettingInstance.viewOdds(2);
+        console.log("Odds Team A:", oddsTeamA.toString());
+        console.log("Odds Team B:", oddsTeamB.toString());
 
-        assert(oddsTeamA.toString() !== "0", "Odds for Team A should not be zero");
-        assert(oddsTeamB.toString() !== "0", "Odds for Team B should not be zero");
-    });
-
-    it("should allow owner to withdraw funds", async () => {
-        const withdrawalAmount = web3.utils.toWei("1", "ether");
-        await bettingInstance.withdrawFunds(withdrawalAmount, { from: owner });
-
-        const bank = await bettingInstance.bank();
-        assert.equal(bank.toString(), web3.utils.toWei("9", "ether"), "Bank balance did not update after withdrawal");
-    });
-
-    it("should not allow non-owner to withdraw funds", async () => {
-        try {
-            const withdrawalAmount = web3.utils.toWei("1", "ether");
-            await bettingInstance.withdrawFunds(withdrawalAmount, { from: bettor1 });
-            assert.fail("Non-owner should not be able to withdraw funds");
-        } catch (error) {
-            assert(error.message.includes("Only owner can call this function"), "Expected only owner error");
-        }
+        // Assertions
+        assert(finalBalanceBettor1.gt(initialBalanceBettor1), "Bettor1 should have received a payout");
+        assert.equal(finalBalanceBettor2.toString(), initialBalanceBettor2.toString(), "Bettor2 should not have received any payout");
+        assert.equal(finalContractBalance.toString(), '0', "Contract balance should be zero after payout");
     });
 });

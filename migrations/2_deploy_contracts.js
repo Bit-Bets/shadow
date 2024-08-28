@@ -6,8 +6,6 @@ module.exports = function (deployer) {
   const maxBetAmount = web3.utils.toWei("1", "ether"); // 1 ETH como valor máximo de aposta
   const teamAName = "Team A";
   const teamBName = "Team B";
-  const teamAProbability = 60; // 60% de chance para o Team A
-  const teamBProbability = 40; // 40% de chance para o Team B
 
   // Deploy do contrato Betting com os parâmetros do construtor
   deployer.deploy(
@@ -15,8 +13,6 @@ module.exports = function (deployer) {
     initialBank,
     maxBetAmount,
     teamAName,
-    teamBName,
-    teamAProbability,
-    teamBProbability
+    teamBName
   );
 };

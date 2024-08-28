@@ -5,8 +5,6 @@ module.exports = async function(callback) {
     const maxBetAmount = web3.utils.toWei("1", "ether");
     const teamAName = "Team A";
     const teamBName = "Team B";
-    const teamAProbability = 60; // 60% de chance para o Team A
-    const teamBProbability = 40; // 40% de chance para o Team B
     
     try {
         const accounts = await web3.eth.getAccounts();
@@ -15,8 +13,7 @@ module.exports = async function(callback) {
             maxBetAmount,
             teamAName,
             teamBName,
-            teamAProbability,
-            teamBProbability,
+
             { from: accounts[0] }
         );
         console.log('Contract deployed at address:', instance.address);

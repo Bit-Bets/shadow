@@ -1,8 +1,22 @@
 const Betting = artifacts.require("Betting");
 
-module.exports = async function (deployer) {
-  const initialBank = web3.utils.toWei('10', 'ether'); // Valor de exemplo
-  const maxBetAmount = web3.utils.toWei('1', 'ether'); // Valor de exemplo
-  
-  await deployer.deploy(Betting, initialBank, maxBetAmount);
+module.exports = function (deployer) {
+  // Defina os parâmetros para o construtor do contrato
+  const initialBank = web3.utils.toWei("10", "ether"); // 10 ETH como valor inicial do banco
+  const maxBetAmount = web3.utils.toWei("1", "ether"); // 1 ETH como valor máximo de aposta
+  const teamAName = "Team A";
+  const teamBName = "Team B";
+  const teamAProbability = 60; // 60% de chance para o Team A
+  const teamBProbability = 40; // 40% de chance para o Team B
+
+  // Deploy do contrato Betting com os parâmetros do construtor
+  deployer.deploy(
+    Betting,
+    initialBank,
+    maxBetAmount,
+    teamAName,
+    teamBName,
+    teamAProbability,
+    teamBProbability
+  );
 };
